@@ -18,6 +18,13 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Fix dependencies
+        run: |
+          go get github.com/jackc/pgservicefile@v0.0.0-20240606130910-8f7825a96e2a
+          go get github.com/jackc/pgx/v5@v5.6.0
+          go get github.com/gorilla/mux@v1.8.1
+          go mod tidy
+
       - name: Build
         run: go build ./...
 
