@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// RecurrenceType identifies which recurrence rule is used.
 type RecurrenceType string
 
 const (
@@ -16,7 +15,6 @@ const (
 	RecurrenceEvenOdd       RecurrenceType = "even_odd"
 )
 
-// Parity is used with RecurrenceEvenOdd.
 type Parity string
 
 const (
@@ -24,14 +22,6 @@ const (
 	ParityOdd  Parity = "odd"
 )
 
-// Recurrence defines when a periodic task should repeat.
-//
-// Only the fields relevant to the chosen Type are required:
-//
-//	daily          → Interval  (every N days, N >= 1)
-//	monthly        → DayOfMonth (1-30; months shorter than this day are skipped)
-//	specific_dates → Dates     (non-empty slice of "YYYY-MM-DD" strings)
-//	even_odd       → Parity    ("even" or "odd" day-of-month)
 type Recurrence struct {
 	Type       RecurrenceType `json:"type"`
 	Interval   *int           `json:"interval,omitempty"`
@@ -40,7 +30,6 @@ type Recurrence struct {
 	Parity     *Parity        `json:"parity,omitempty"`
 }
 
-// Validate checks that the rule is self-consistent.
 func (r *Recurrence) Validate() error {
 	if r == nil {
 		return nil
@@ -76,12 +65,6 @@ func (r *Recurrence) Validate() error {
 	return nil
 }
 
-// Occurrences returns all dates in the closed interval [from, to] on which
-// the rule fires. The anchor parameter is used only by RecurrenceDaily: it is
-// the date the sequence starts from (normally the parent task's due_date) so
-// that "every 3 days" is measured from the original task, not from `from`.
-//
-// All returned times are midnight UTC.
 func (r *Recurrence) Occurrences(anchor, from, to time.Time) []time.Time {
 	from = truncateDay(from)
 	to = truncateDay(to)
@@ -97,15 +80,14 @@ func (r *Recurrence) Occurrences(anchor, from, to time.Time) []time.Time {
 
 	case RecurrenceDaily:
 		interval := *r.Interval
-		// Start the sequence at anchor; advance until we reach `from`.
 		cur := anchor
 		if cur.After(to) {
 			return nil
 		}
 		// Fast-forward to the first occurrence >= from.
 		if cur.Before(from) {
-			diff := int(from.Sub(cur).Hours()/24) + 1
-			steps := (diff + interval - 1) / interval // ceiling division
+			diff := int(from.Sub(cur).Hours() / 24)
+			steps := (diff + interval - 1) / interval
 			cur = cur.AddDate(0, 0, steps*interval)
 		}
 		for !cur.After(to) {
@@ -115,7 +97,6 @@ func (r *Recurrence) Occurrences(anchor, from, to time.Time) []time.Time {
 
 	case RecurrenceMonthly:
 		day := *r.DayOfMonth
-		// Walk month by month through the range.
 		cur := time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
 		for !cur.After(to) {
 			dim := daysInMonth(cur.Year(), cur.Month())
@@ -125,8 +106,6 @@ func (r *Recurrence) Occurrences(anchor, from, to time.Time) []time.Time {
 					result = append(result, candidate)
 				}
 			}
-			// If day > daysInMonth the month is intentionally skipped
-			// (e.g. day=30 skips February entirely).
 			cur = cur.AddDate(0, 1, 0)
 		}
 
@@ -156,13 +135,10 @@ func (r *Recurrence) Occurrences(anchor, from, to time.Time) []time.Time {
 	return result
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
 func truncateDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func daysInMonth(year int, month time.Month) int {
-	// day 0 of the next month == last day of this month
 	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }
